@@ -79,7 +79,7 @@
     const camera = new THREE.PerspectiveCamera(
       42, window.innerWidth / window.innerHeight, 0.1, 1000
     );
-    camera.position.set(0, 1.0, 5);
+    camera.position.set(0, 1.4, 5.5);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true, alpha: false, powerPreference: 'high-performance'
@@ -104,18 +104,16 @@
       c.width = 2048; c.height = 1024;
       const ctx = c.getContext('2d');
 
-      // Base gradient — warm brown undertone
       const grad = ctx.createLinearGradient(0, 0, 0, 1024);
       grad.addColorStop(0.00, '#2a1f18');
       grad.addColorStop(0.42, '#5a4230');
-      grad.addColorStop(0.50, '#f8f0e0'); // bright horizon
+      grad.addColorStop(0.50, '#f8f0e0');
       grad.addColorStop(0.58, '#7a5a3a');
       grad.addColorStop(0.75, '#3a2818');
       grad.addColorStop(1.00, '#0a0705');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 2048, 1024);
 
-      // Bright studio streaks (more of them, brighter)
       const drawStreak = (x, y, w, h, color, blur) => {
         ctx.save();
         ctx.shadowBlur = blur;
@@ -131,7 +129,6 @@
       drawStreak(1380, 330, 65, 360, '#fff8dc', 80);
       drawStreak(1700, 310, 50, 400, '#ffe9a8', 100);
 
-      // Warm gold radial glows
       const warmGlow = (cx, cy, r, color) => {
         const rg = ctx.createRadialGradient(cx, cy, 10, cx, cy, r);
         rg.addColorStop(0, color);
@@ -142,7 +139,6 @@
       warmGlow(300, 500, 400, 'rgba(255,180,80,0.7)');
       warmGlow(1500, 480, 450, 'rgba(255,200,120,0.6)');
 
-      // Cool rim on opposite side
       const coolGlow = ctx.createRadialGradient(100, 600, 10, 100, 600, 400);
       coolGlow.addColorStop(0, 'rgba(140,170,255,0.7)');
       coolGlow.addColorStop(1, 'rgba(140,170,255,0)');
@@ -173,10 +169,10 @@
     keyLight.shadow.mapSize.set(2048, 2048);
     keyLight.shadow.camera.near = 0.5;
     keyLight.shadow.camera.far = 40;
-    keyLight.shadow.camera.left = -6;
-    keyLight.shadow.camera.right = 6;
-    keyLight.shadow.camera.top = 6;
-    keyLight.shadow.camera.bottom = -6;
+    keyLight.shadow.camera.left = -8;
+    keyLight.shadow.camera.right = 8;
+    keyLight.shadow.camera.top = 8;
+    keyLight.shadow.camera.bottom = -8;
     keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
@@ -193,7 +189,51 @@
     scene.add(bounce);
 
     /* ============================================================
-       4. CONTROLS
+       4. BADA CIRCLE — reflective brown floor (WAPAS ADD KIYA)
+    ============================================================ */
+    // Big reflective disc
+    const floorGeo = new THREE.CircleGeometry(9, 128);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x1c120a,        // dark warm brown
+      metalness: 1.0,          // mirror-like
+      roughness: 0.08,         // very glossy
+      envMap,
+      envMapIntensity: 2.5
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.6;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // Glowing gold ring around the circle
+    const ringGeo = new THREE.RingGeometry(8.85, 9.05, 128);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xd4a860,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = -1.59;
+    scene.add(ring);
+
+    // Inner faint ring for depth
+    const innerRingGeo = new THREE.RingGeometry(3.0, 3.03, 128);
+    const innerRingMat = new THREE.MeshBasicMaterial({
+      color: 0xc08840,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.3
+    });
+    const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
+    innerRing.rotation.x = -Math.PI / 2;
+    innerRing.position.y = -1.59;
+    scene.add(innerRing);
+
+    /* ============================================================
+       5. CONTROLS
     ============================================================ */
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -212,7 +252,7 @@
     });
 
     /* ============================================================
-       5. LOAD MODEL — horizontal + brown + heavy reflection
+       6. LOAD MODEL — horizontal + brown + heavy reflection
     ============================================================ */
     const loaderEl   = document.getElementById('loader');
     const progressEl = document.getElementById('progress');
@@ -228,21 +268,16 @@
       function (gltf) {
         const gunModel = gltf.scene;
 
-        // ---- Detect longest axis, force horizontal ----
+        // ---- Force horizontal ----
         const rawBox  = new THREE.Box3().setFromObject(gunModel);
         const rawSize = rawBox.getSize(new THREE.Vector3());
 
-        // If model is longer along Y (vertical) or Z, rotate so longest axis = X
         if (rawSize.y > rawSize.x && rawSize.y > rawSize.z) {
-          // Vertical → lay it down
           gunModel.rotation.z = -Math.PI / 2;
         } else if (rawSize.z > rawSize.x && rawSize.z > rawSize.y) {
-          // Points into screen → rotate to X
           gunModel.rotation.y = Math.PI / 2;
         }
-        // else already horizontal along X — leave alone
 
-        // Recompute box AFTER rotation and re-center
         gunModel.updateMatrixWorld(true);
         const box    = new THREE.Box3().setFromObject(gunModel);
         const center = box.getCenter(new THREE.Vector3());
@@ -260,7 +295,6 @@
           const isBrass = /brass|gold|receiver|trigger|lever/.test(name);
 
           if (isWood) {
-            // Rich dark walnut wood — glossy
             node.material = new THREE.MeshStandardMaterial({
               color: 0x5c3a1e,
               metalness: 0.55,
@@ -269,7 +303,6 @@
               envMapIntensity: 2.2
             });
           } else if (isBrass) {
-            // Polished copper-brass
             node.material = new THREE.MeshStandardMaterial({
               color: 0xc08840,
               metalness: 1.0,
@@ -278,7 +311,6 @@
               envMapIntensity: 3.0
             });
           } else {
-            // Dark chocolate brown metal — mirror polish
             node.material = new THREE.MeshStandardMaterial({
               color: 0x2b1a0f,
               metalness: 1.0,
@@ -289,7 +321,6 @@
           }
         });
 
-        // Wrap in group for floating bob
         gunGroup = new THREE.Group();
         gunGroup.add(gunModel);
         scene.add(gunGroup);
@@ -297,7 +328,7 @@
         // Auto-frame camera
         const maxDim = Math.max(size.x, size.y, size.z);
         const dist   = maxDim * 1.9;
-        camera.position.set(0, maxDim * 0.35, dist);
+        camera.position.set(0, maxDim * 0.4, dist);
         camera.near = maxDim * 0.01;
         camera.far  = maxDim * 200;
         camera.updateProjectionMatrix();
@@ -328,7 +359,7 @@
     );
 
     /* ============================================================
-       6. RENDER LOOP
+       7. RENDER LOOP — floating bob + slow ring pulse
     ============================================================ */
     const clock = new THREE.Clock();
 
@@ -341,6 +372,8 @@
         gunGroup.rotation.z = Math.sin(t * 0.7) * 0.015;
       }
 
+      // Ring breathing glow
+      ringMat.opacity = 0.7 + Math.sin(t * 1.5) * 0.2;
       rimLight.intensity = 2.4 + Math.sin(t * 1.3) * 0.35;
 
       controls.update();
@@ -349,7 +382,7 @@
     animate();
 
     /* ============================================================
-       7. RESIZE
+       8. RESIZE
     ============================================================ */
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;

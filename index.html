@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My 3D Gun Viewer</title>
+<title>Winchester 1866 3D Viewer</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; }
+  body { overflow: hidden; background-color: #151515; font-family: sans-serif; }
   #canvas-container { width: 100vw; height: 100vh; display: block; }
   
   .ui-overlay {
@@ -29,73 +29,92 @@
   <div id="canvas-container"></div>
 
   <div class="ui-overlay">
-    <h1>ASG Barra 1866 CO2</h1>
+    <h1>Winchester 1866</h1>
     <p>🖱️ Drag to Rotate<br>🖱️ Scroll to Zoom</p>
   </div>
 
-  <!-- Three.js CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    // 1. Setup Scene, Camera, Renderer
+    // 1. Setup Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a1a); // Dark background
+    scene.background = new THREE.Color(0x151515); 
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1, 5); // Camera distance
+    camera.position.set(0, 1, 5); 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true; // Enable shadows
+    renderer.shadowMap.enabled = true; 
+    renderer.outputEncoding = THREE.sRGBEncoding; // Is nal color vibrant hunda hai
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-    // 2. Lighting (Makes the metal and wood look real)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // 2. Better Lighting (Color pop karan layi)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
     dirLight.position.set(5, 10, 7);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    const backLight = new THREE.PointLight(0xffaa00, 0.5, 10);
-    backLight.position.set(-5, 2, -5);
-    scene.add(backLight);
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    fillLight.position.set(-5, 5, -5);
+    scene.add(fillLight);
 
-    // 3. Controls (Mouse rotate & zoom)
+    // 3. Controls
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.autoRotate = true; // Gun slowly spins on load
+    controls.autoRotate = true; 
     controls.autoRotateSpeed = 1.5;
 
-    // 4. Load your .glb file
+    // 4. Load Model & Fix Colors
     const loader = new THREE.GLTFLoader();
     
-    // ⚠️ IMPORTANT: Make sure your file name is exactly 'gun.glb'
     loader.load('gun.glb', function (gltf) {
         const gunModel = gltf.scene;
         
-        // Auto-center and scale the model
+        // Auto-center
         const box = new THREE.Box3().setFromObject(gunModel);
         const center = box.getCenter(new THREE.Vector3());
-        gunModel.position.sub(center); // Center it
+        gunModel.position.sub(center); 
 
+        // === COLOR & TEXTURE FIX ===
         gunModel.traverse((node) => {
             if (node.isMesh) {
                 node.castShadow = true;
                 node.receiveShadow = true;
+
+                // Agar model vich pehla toh texture hai, taan ohnu theek karo
+                if (node.material) {
+                    // Metal nu shiny banao
+                    if (node.material.metalness !== undefined) {
+                        node.material.metalness = 0.8; 
+                        node.material.roughness = 0.4;
+                    }
+                    node.material.needsUpdate = true;
+                }
+
+                // Agar model grey (bina texture) hai, taan Wood te Metal da color de do
+                if (!node.material || !node.material.map) {
+                    node.material = new THREE.MeshStandardMaterial({
+                        color: 0x5c3a21, // Wooden Brown Color
+                        metalness: 0.6,
+                        roughness: 0.5
+                    });
+                }
             }
         });
 
         scene.add(gunModel);
-        document.getElementById('loader').style.display = 'none'; // Hide loading text
+        document.getElementById('loader').style.display = 'none'; 
     }, 
     undefined, 
     function (error) {
-        console.error('Error loading model:', error);
-        document.getElementById('loader').innerText = "Error: gun.glb file not found!";
+        console.error('Error:', error);
+        document.getElementById('loader').innerText = "Error: File not found!";
     });
 
     // 5. Animation Loop
@@ -106,7 +125,7 @@
     }
     animate();
 
-    // 6. Handle Window Resize
+    // 6. Resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();

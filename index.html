@@ -3,65 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Winchester 1866 — Black Edition</title>
+<title>Winchester 1866 - Color Fixed</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; font-family: 'Segoe UI', sans-serif; }
-
+  body { overflow: hidden; background-color: #151515; font-family: sans-serif; }
   #canvas-container { width: 100vw; height: 100vh; display: block; }
-
+  
   .ui-overlay {
-    position: absolute; top: 20px; left: 20px;
-    pointer-events: none;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(12px);
-    padding: 18px 22px;
-    border-radius: 10px;
-    color: #fff;
-    border-left: 4px solid #d4af37;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-    max-width: 320px;
+    position: absolute; top: 20px; left: 20px; pointer-events: none;
+    background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 8px;
+    color: white; border-left: 4px solid #d4af37; max-width: 300px;
   }
-  .ui-overlay h1 {
-    font-size: 1.4rem; margin-bottom: 6px;
-    color: #d4af37; letter-spacing: 1px; font-weight: 600;
+  .ui-overlay h1 { font-size: 1.5rem; margin-bottom: 5px; color: #d4af37; }
+  .ui-overlay p { font-size: 0.9rem; color: #ccc; }
+  
+  #loader {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    color: #d4af37; font-size: 1.2rem; font-weight: bold; z-index: 10;
   }
-  .ui-overlay p { font-size: 0.85rem; color: #bbb; line-height: 1.5; }
-
-  .loading {
-    position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    color: #d4af37; font-size: 1.1rem;
-    text-align: center; letter-spacing: 3px;
-    pointer-events: none;
-  }
-  .loading .bar {
-    width: 220px; height: 3px;
-    background: rgba(255,255,255,0.1);
-    margin: 12px auto 0; border-radius: 2px;
-    overflow: hidden;
-  }
-  .loading .bar div {
-    height: 100%; width: 0%;
-    background: linear-gradient(90deg, #d4af37, #fff8dc);
-    transition: width 0.2s;
-  }
-  .hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
-  .error-msg { color: #ff5c5c !important; font-weight: 600; }
 </style>
 </head>
 <body>
 
+  <div id="loader">Loading 3D Model...</div>
   <div id="canvas-container"></div>
 
-  <div class="ui-overlay" id="ui">
+  <div class="ui-overlay">
     <h1>Winchester 1866</h1>
-    <p>🖱️ Drag to Rotate &nbsp;|&nbsp; 🖱️ Scroll to Zoom<br>⚫ Black Edition — Floating</p>
-  </div>
-
-  <div class="loading" id="loader">
-    LOADING
-    <div class="bar"><div id="progress"></div></div>
+    <p>🖱️ Drag to Rotate<br>🖱️ Scroll to Zoom</p>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -69,268 +38,104 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
-    /* ============================================================
-       1. SCENE
-    ============================================================ */
-    const container = document.getElementById('canvas-container');
+    // 1. Setup Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    scene.background = new THREE.Color(0x151515); 
 
-    const camera = new THREE.PerspectiveCamera(
-      42, window.innerWidth / window.innerHeight, 0.1, 1000
-    );
-    camera.position.set(0, 1.2, 5);
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1, 5); 
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true, alpha: false, powerPreference: 'high-performance'
-    });
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    container.appendChild(renderer.domElement);
+    renderer.shadowMap.enabled = true; 
+    renderer.outputEncoding = THREE.sRGBEncoding; 
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-    /* ============================================================
-       2. FAKE ENVIRONMENT MAP — gives metal something to reflect
-          (gradient sky + gold streaks + soft studio lights)
-    ============================================================ */
-    function buildEnvironment() {
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      pmrem.compileEquirectangularShader();
+    // 2. Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
 
-      // Build a canvas-based equirectangular gradient texture
-      const c = document.createElement('canvas');
-      c.width = 1024; c.height = 512;
-      const ctx = c.getContext('2d');
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    dirLight.position.set(5, 10, 7);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
 
-      // Vertical gradient: dark floor → bright horizon → soft sky
-      const grad = ctx.createLinearGradient(0, 0, 0, 512);
-      grad.addColorStop(0.00, '#1a1a22');
-      grad.addColorStop(0.45, '#3a3a44');
-      grad.addColorStop(0.55, '#f5f0e1'); // bright horizon line
-      grad.addColorStop(0.70, '#4a3a22');
-      grad.addColorStop(1.00, '#0a0a0a');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 1024, 512);
-
-      // Gold streak highlights (studio strips)
-      const drawStreak = (x, y, w, h, color, blur) => {
-        ctx.save();
-        ctx.shadowBlur = blur;
-        ctx.shadowColor = color;
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
-        ctx.restore();
-      };
-      drawStreak(120, 180, 40, 160, '#fff8dc', 40);
-      drawStreak(520, 150, 60, 220, '#ffe9a8', 60);
-      drawStreak(820, 200, 40, 140, '#fff8dc', 40);
-
-      // Soft blue rim on one side
-      const rg = ctx.createRadialGradient(60, 300, 10, 60, 300, 200);
-      rg.addColorStop(0, 'rgba(120,150,255,0.8)');
-      rg.addColorStop(1, 'rgba(120,150,255,0)');
-      ctx.fillStyle = rg;
-      ctx.fillRect(0, 0, 1024, 512);
-
-      const tex = new THREE.CanvasTexture(c);
-      tex.mapping = THREE.EquirectangularReflectionMapping;
-      tex.encoding = THREE.sRGBEncoding;
-
-      const envMap = pmrem.fromEquirectangular(tex).texture;
-      tex.dispose();
-      pmrem.dispose();
-      return envMap;
-    }
-
-    const envMap = buildEnvironment();
-    scene.environment = envMap;
-
-    /* ============================================================
-       3. LIGHTING — cinematic
-    ============================================================ */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
-    keyLight.position.set(6, 10, 7);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.set(2048, 2048);
-    keyLight.shadow.camera.near = 0.5;
-    keyLight.shadow.camera.far = 40;
-    keyLight.shadow.camera.left = -6;
-    keyLight.shadow.camera.right = 6;
-    keyLight.shadow.camera.top = 6;
-    keyLight.shadow.camera.bottom = -6;
-    keyLight.shadow.bias = -0.0005;
-    scene.add(keyLight);
-
-    const rimLight = new THREE.DirectionalLight(0xd4af37, 2.0);
-    rimLight.position.set(-7, 4, -6);
-    scene.add(rimLight);
-
-    const fillLight = new THREE.PointLight(0xffffff, 1.2, 30, 2);
-    fillLight.position.set(-4, 3, 6);
+    const fillLight = new THREE.PointLight(0xffaa55, 1.0, 15); // Warm light for wood
+    fillLight.position.set(-5, 5, 5);
     scene.add(fillLight);
 
-    const bounce = new THREE.PointLight(0x7788ff, 0.9, 18, 2);
-    bounce.position.set(0, -3, 0);
-    scene.add(bounce);
-
-    /* ============================================================
-       4. CONTROLS — 180° floating view
-    ============================================================ */
+    // 3. Controls
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 1.4;
-    controls.enablePan = false;
-    controls.minDistance = 1.5;
-    controls.maxDistance = 15;
-    controls.maxPolarAngle = Math.PI * 0.85;
-    controls.minPolarAngle = Math.PI * 0.15;
+    controls.autoRotate = true; 
+    controls.autoRotateSpeed = 1.5;
 
-    controls.addEventListener('start', () => controls.autoRotate = false);
-    controls.addEventListener('end', () => {
-      setTimeout(() => controls.autoRotate = true, 2500);
-    });
-
-    /* ============================================================
-       5. LOAD MODEL — floating in air
-    ============================================================ */
-    const loaderEl   = document.getElementById('loader');
-    const progressEl = document.getElementById('progress');
-    const uiEl       = document.getElementById('ui');
-
+    // 4. Load Model & FORCE COLORS
     const loader = new THREE.GLTFLoader();
-    let gunGroup = null;
-    let baseY = 0;
-
-    loader.load(
-      'gun.glb',
-
-      function (gltf) {
+    
+    loader.load('gun.glb', function (gltf) {
         const gunModel = gltf.scene;
-
-        // Center at origin — no ground, pure float
-        const box    = new THREE.Box3().setFromObject(gunModel);
+        
+        // Center Model
+        const box = new THREE.Box3().setFromObject(gunModel);
         const center = box.getCenter(new THREE.Vector3());
-        const size   = box.getSize(new THREE.Vector3());
-        gunModel.position.sub(center);
+        gunModel.position.sub(center); 
 
-        // ---- Material handling: heavy reflection ----
+        // === MAJBURI NAAL COLOR LAGAO ===
+        // Eh code har ik mesh nu check karega te ohnu Brown ya Black bana dega
         gunModel.traverse((node) => {
-          if (!node.isMesh) return;
-          node.castShadow = true;
-          node.receiveShadow = true;
+            if (node.isMesh) {
+                node.castShadow = true;
+                node.receiveShadow = true;
 
-          const name = (node.name + ' ' + (node.material?.name || '')).toLowerCase();
-          const isWood  = /wood|stock|handle|grip/.test(name);
-          const isBrass = /brass|gold|receiver|trigger|lever/.test(name);
+                // Purana grey material hatao te naya colorful lagao
+                // (Asi assume kar rahe haan ki lakdi wale hisse chote ne te metal wale wadde)
+                const isWood = node.name.toLowerCase().includes('stock') || 
+                               node.name.toLowerCase().includes('wood') || 
+                               node.name.toLowerCase().includes('grip') ||
+                               node.name.toLowerCase().includes('butt');
 
-          if (isWood) {
-            node.material = new THREE.MeshStandardMaterial({
-              color: 0x3a2418,
-              metalness: 0.35,
-              roughness: 0.55,
-              envMap,
-              envMapIntensity: 1.2
-            });
-          } else if (isBrass) {
-            node.material = new THREE.MeshStandardMaterial({
-              color: 0xd4af37,
-              metalness: 1.0,
-              roughness: 0.08,
-              envMap,
-              envMapIntensity: 1.8
-            });
-          } else {
-            // Glossy black metal — HIGH reflection
-            node.material = new THREE.MeshStandardMaterial({
-              color: 0x0a0a0a,
-              metalness: 1.0,
-              roughness: 0.05,
-              envMap,
-              envMapIntensity: 2.2
-            });
-          }
+                if (isWood) {
+                    // Lakdi da color (Wood Brown)
+                    node.material = new THREE.MeshStandardMaterial({
+                        color: 0x6b3e1f, 
+                        roughness: 0.8,
+                        metalness: 0.1
+                    });
+                } else {
+                    // Metal da color (Shiny Black)
+                    node.material = new THREE.MeshStandardMaterial({
+                        color: 0x111111, 
+                        roughness: 0.3,
+                        metalness: 0.9
+                    });
+                }
+            }
         });
 
-        // Wrap in a group so we can bob it up and down
-        gunGroup = new THREE.Group();
-        gunGroup.add(gunModel);
-        scene.add(gunGroup);
+        scene.add(gunModel);
+        document.getElementById('loader').style.display = 'none'; 
+    }, 
+    undefined, 
+    function (error) {
+        console.error('Error:', error);
+        document.getElementById('loader').innerText = "Error: File not found!";
+    });
 
-        // Auto-frame camera
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const dist   = maxDim * 1.9;
-        camera.position.set(0, maxDim * 0.35, dist);
-        camera.near = maxDim * 0.01;
-        camera.far  = maxDim * 200;
-        camera.updateProjectionMatrix();
-
-        controls.target.set(0, 0, 0);
-        controls.minDistance = maxDim * 0.6;
-        controls.maxDistance = maxDim * 5;
-        controls.update();
-
-        baseY = 0;
-        gunGroup.position.y = baseY;
-
-        loaderEl.classList.add('hidden');
-        setTimeout(() => loaderEl.remove(), 500);
-      },
-
-      function (xhr) {
-        if (xhr.total) {
-          progressEl.style.width = Math.round((xhr.loaded / xhr.total) * 100) + '%';
-        }
-      },
-
-      function (error) {
-        console.error('GLB load failed:', error);
-        loaderEl.innerHTML = '<p class="error-msg">⚠️ Failed to load gun.glb<br><span style="font-size:0.8rem;color:#888;">File should be in same folder</span></p>';
-        uiEl.querySelector('p').textContent = 'Model missing — check console.';
-      }
-    );
-
-    /* ============================================================
-       6. RENDER LOOP — floating bob + rim pulse
-    ============================================================ */
-    const clock = new THREE.Clock();
-
+    // 5. Animation Loop
     function animate() {
-      requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
-
-      if (gunGroup) {
-        // Gentle floating: 1 unit total travel, slow sine
-        gunGroup.position.y = baseY + Math.sin(t * 1.1) * 0.06;
-        // Very subtle roll so reflections shimmer
-        gunGroup.rotation.z = Math.sin(t * 0.7) * 0.015;
-      }
-
-      rimLight.intensity = 2.0 + Math.sin(t * 1.3) * 0.3;
-
-      controls.update();
-      renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
     }
     animate();
 
-    /* ============================================================
-       7. RESIZE
-    ============================================================ */
+    // 6. Resize
     window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
     });
-
-    renderer.domElement.style.touchAction = 'none';
   </script>
 </body>
 </html>

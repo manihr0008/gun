@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Winchester 1866 3D Viewer</title>
+<title>Winchester 1866 - Color Fixed</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { overflow: hidden; background-color: #151515; font-family: sans-serif; }
@@ -48,20 +48,20 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true; 
-    renderer.outputEncoding = THREE.sRGBEncoding; // Is nal color vibrant hunda hai
+    renderer.outputEncoding = THREE.sRGBEncoding; 
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-    // 2. Better Lighting (Color pop karan layi)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    // 2. Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
     dirLight.position.set(5, 10, 7);
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    fillLight.position.set(-5, 5, -5);
+    const fillLight = new THREE.PointLight(0xffaa55, 1.0, 15); // Warm light for wood
+    fillLight.position.set(-5, 5, 5);
     scene.add(fillLight);
 
     // 3. Controls
@@ -70,39 +70,44 @@
     controls.autoRotate = true; 
     controls.autoRotateSpeed = 1.5;
 
-    // 4. Load Model & Fix Colors
+    // 4. Load Model & FORCE COLORS
     const loader = new THREE.GLTFLoader();
     
     loader.load('gun.glb', function (gltf) {
         const gunModel = gltf.scene;
         
-        // Auto-center
+        // Center Model
         const box = new THREE.Box3().setFromObject(gunModel);
         const center = box.getCenter(new THREE.Vector3());
         gunModel.position.sub(center); 
 
-        // === COLOR & TEXTURE FIX ===
+        // === MAJBURI NAAL COLOR LAGAO ===
+        // Eh code har ik mesh nu check karega te ohnu Brown ya Black bana dega
         gunModel.traverse((node) => {
             if (node.isMesh) {
                 node.castShadow = true;
                 node.receiveShadow = true;
 
-                // Agar model vich pehla toh texture hai, taan ohnu theek karo
-                if (node.material) {
-                    // Metal nu shiny banao
-                    if (node.material.metalness !== undefined) {
-                        node.material.metalness = 0.8; 
-                        node.material.roughness = 0.4;
-                    }
-                    node.material.needsUpdate = true;
-                }
+                // Purana grey material hatao te naya colorful lagao
+                // (Asi assume kar rahe haan ki lakdi wale hisse chote ne te metal wale wadde)
+                const isWood = node.name.toLowerCase().includes('stock') || 
+                               node.name.toLowerCase().includes('wood') || 
+                               node.name.toLowerCase().includes('grip') ||
+                               node.name.toLowerCase().includes('butt');
 
-                // Agar model grey (bina texture) hai, taan Wood te Metal da color de do
-                if (!node.material || !node.material.map) {
+                if (isWood) {
+                    // Lakdi da color (Wood Brown)
                     node.material = new THREE.MeshStandardMaterial({
-                        color: 0x5c3a21, // Wooden Brown Color
-                        metalness: 0.6,
-                        roughness: 0.5
+                        color: 0x6b3e1f, 
+                        roughness: 0.8,
+                        metalness: 0.1
+                    });
+                } else {
+                    // Metal da color (Shiny Black)
+                    node.material = new THREE.MeshStandardMaterial({
+                        color: 0x111111, 
+                        roughness: 0.3,
+                        metalness: 0.9
                     });
                 }
             }

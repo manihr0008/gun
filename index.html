@@ -3,28 +3,71 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Winchester 1866 - Black Edition</title>
+<title>Winchester 1866 — Black Edition</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { overflow: hidden; background-color: #2a2a2a; font-family: sans-serif; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; }
+
   #canvas-container { width: 100vw; height: 100vh; display: block; }
-  
+
   .ui-overlay {
-    position: absolute; top: 20px; left: 20px; pointer-events: none;
-    background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 8px;
-    color: white; border-left: 4px solid #d4af37; max-width: 300px;
+    position: absolute; top: 20px; left: 20px;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(10px);
+    padding: 18px 22px;
+    border-radius: 10px;
+    color: #fff;
+    border-left: 4px solid #d4af37;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    max-width: 320px;
+    transition: opacity 0.4s;
   }
-  .ui-overlay h1 { font-size: 1.5rem; margin-bottom: 5px; color: #d4af37; }
-  .ui-overlay p { font-size: 0.9rem; color: #ccc; }
+  .ui-overlay h1 {
+    font-size: 1.4rem; margin-bottom: 6px;
+    color: #d4af37; letter-spacing: 1px;
+    font-weight: 600;
+  }
+  .ui-overlay p { font-size: 0.85rem; color: #bbb; line-height: 1.5; }
+
+  .loading {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #d4af37; font-size: 1.1rem;
+    text-align: center; letter-spacing: 2px;
+    pointer-events: none;
+  }
+  .loading .bar {
+    width: 220px; height: 3px;
+    background: rgba(255,255,255,0.1);
+    margin: 12px auto 0; border-radius: 2px;
+    overflow: hidden;
+  }
+  .loading .bar div {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #d4af37, #fff8dc);
+    transition: width 0.2s;
+  }
+  .hidden { opacity: 0; pointer-events: none; }
+
+  .error-msg {
+    color: #ff5c5c !important;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
 
   <div id="canvas-container"></div>
 
-  <div class="ui-overlay">
+  <div class="ui-overlay" id="ui">
     <h1>Winchester 1866</h1>
-    <p>🖱️ Drag to Rotate<br>🖱️ Scroll to Zoom</p>
+    <p>🖱️ Drag to Rotate &nbsp;|&nbsp; 🖱️ Scroll to Zoom<br>⚫ Black Edition</p>
+  </div>
+
+  <div class="loading" id="loader">
+    LOADING
+    <div class="bar"><div id="progress"></div></div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -32,80 +75,234 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
   <script>
+    /* ============================================================
+       1. SCENE SETUP
+    ============================================================ */
+    const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x2a2a2a); 
+    scene.background = new THREE.Color(0x1a1a1a);
 
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1, 5); 
+    // Subtle fog for depth
+    scene.fog = new THREE.Fog(0x1a1a1a, 8, 25);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const camera = new THREE.PerspectiveCamera(
+      42, window.innerWidth / window.innerHeight, 0.1, 1000
+    );
+    camera.position.set(0, 1, 5);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance'
+    });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true; 
-    renderer.outputEncoding = THREE.sRGBEncoding; 
-    document.getElementById('canvas-container').appendChild(renderer.domElement);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
 
-    // Lighting (Tez roshni taaki black gun dekh sake)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); 
-    scene.add(ambientLight);
+    /* ============================================================
+       2. LIGHTING — cinematic 3-point setup
+    ============================================================ */
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+    scene.add(ambient);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-    dirLight.position.set(5, 10, 7);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
+    // Key light
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    keyLight.position.set(6, 10, 7);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 30;
+    keyLight.shadow.camera.left = -5;
+    keyLight.shadow.camera.right = 5;
+    keyLight.shadow.camera.top = 5;
+    keyLight.shadow.camera.bottom = -5;
+    keyLight.shadow.bias = -0.0005;
+    scene.add(keyLight);
 
-    const fillLight = new THREE.PointLight(0xffffff, 1.0, 20); 
-    fillLight.position.set(-5, 5, 5);
+    // Rim light (gold tint to catch edges)
+    const rimLight = new THREE.DirectionalLight(0xd4af37, 1.4);
+    rimLight.position.set(-7, 4, -6);
+    scene.add(rimLight);
+
+    // Fill light
+    const fillLight = new THREE.PointLight(0xffffff, 0.8, 25, 2);
+    fillLight.position.set(-4, 3, 5);
     scene.add(fillLight);
 
+    // Bottom bounce
+    const bounce = new THREE.PointLight(0x6666ff, 0.4, 12);
+    bounce.position.set(0, -3, 0);
+    scene.add(bounce);
+
+    /* ============================================================
+       3. GROUND — subtle reflective floor for shadow
+    ============================================================ */
+    const groundGeo = new THREE.CircleGeometry(12, 64);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x141414,
+      metalness: 0.6,
+      roughness: 0.7
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -1.5;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    /* ============================================================
+       4. CONTROLS
+    ============================================================ */
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.autoRotate = true; 
-    controls.autoRotateSpeed = 1.5;
+    controls.dampingFactor = 0.06;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 1.2;
+    controls.enablePan = false;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 15;
+    controls.maxPolarAngle = Math.PI / 2 + 0.3;
 
-    const loader = new THREE.GLTFLoader();
-    
-    loader.load('gun.glb', function (gltf) {
-        const gunModel = gltf.scene;
-        
-        const box = new THREE.Box3().setFromObject(gunModel);
-        const center = box.getCenter(new THREE.Vector3());
-        gunModel.position.sub(center); 
-
-        // === ZABARDASTI BLACK METAL COLOR ===
-        gunModel.traverse((node) => {
-            if (node.isMesh) {
-                node.castShadow = true;
-                node.receiveShadow = true;
-
-                // Eh purana grey material poori tarah hata dega
-                // Te naya Glossy Black Metal laga dega
-                node.material = new THREE.MeshStandardMaterial({
-                    color: 0x111111,   // Dark Black
-                    metalness: 0.9,    // Metal wargi chamak
-                    roughness: 0.2     // Thoda shiny
-                });
-            }
-        });
-
-        scene.add(gunModel);
-    }, 
-    undefined, 
-    function (error) {
-        console.error('Error:', error);
+    // Pause auto-rotate while dragging
+    controls.addEventListener('start', () => controls.autoRotate = false);
+    controls.addEventListener('end', () => {
+      setTimeout(() => controls.autoRotate = true, 2500);
     });
 
-    function animate() {
-        requestAnimationFrame(animate);
+    /* ============================================================
+       5. LOAD MODEL
+    ============================================================ */
+    const loaderEl = document.getElementById('loader');
+    const progressEl = document.getElementById('progress');
+    const uiEl = document.getElementById('ui');
+
+    const loader = new THREE.GLTFLoader();
+
+    loader.load(
+      'gun.glb',
+
+      // ---- onLoad ----
+      function (gltf) {
+        const gunModel = gltf.scene;
+
+        // Center the model
+        const box = new THREE.Box3().setFromObject(gunModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        gunModel.position.sub(center);
+
+        // ---- Smart material handling ----
+        gunModel.traverse((node) => {
+          if (!node.isMesh) return;
+          node.castShadow = true;
+          node.receiveShadow = true;
+
+          // Decide material by mesh/material name
+          const name = (node.name + ' ' + (node.material?.name || '')).toLowerCase();
+
+          const isWood  = /wood|stock|handle|grip/.test(name);
+          const isBrass = /brass|gold|receiver|trigger|lever/.test(name);
+
+          if (isWood) {
+            // Keep it wooden but dark-stained
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x2b1a10,
+              metalness: 0.05,
+              roughness: 0.85
+            });
+          } else if (isBrass) {
+            // Keep the iconic brass, polished dark
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x6b5a1e,
+              metalness: 1.0,
+              roughness: 0.25,
+              envMapIntensity: 1.2
+            });
+          } else {
+            // Everything else → glossy black metal (the "Black Edition" look)
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x0d0d0d,
+              metalness: 0.95,
+              roughness: 0.18,
+              envMapIntensity: 1.4
+            });
+          }
+        });
+
+        // Auto-frame camera based on model size
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const dist = maxDim * 1.8;
+        camera.position.set(0, maxDim * 0.35, dist);
+        camera.near = maxDim * 0.01;
+        camera.far = maxDim * 100;
+        camera.updateProjectionMatrix();
+
+        controls.target.set(0, 0, 0);
+        controls.minDistance = maxDim * 0.6;
+        controls.maxDistance = maxDim * 4;
         controls.update();
-        renderer.render(scene, camera);
+
+        // Sit gun on the ground plane
+        ground.position.y = -size.y / 2 - 0.15;
+
+        scene.add(gunModel);
+
+        // Hide loader, reveal UI
+        loaderEl.classList.add('hidden');
+        setTimeout(() => loaderEl.remove(), 500);
+      },
+
+      // ---- onProgress ----
+      function (xhr) {
+        if (xhr.total) {
+          const pct = Math.round((xhr.loaded / xhr.total) * 100);
+          progressEl.style.width = pct + '%';
+        }
+      },
+
+      // ---- onError ----
+      function (error) {
+        console.error('GLB load failed:', error);
+        loaderEl.innerHTML = '<p class="error-msg">⚠️ Failed to load gun.glb<br><span style="font-size:0.8rem;color:#888;">Make sure the file is in the same folder</span></p>';
+        uiEl.querySelector('p').textContent = 'Model missing — check console.';
+      }
+    );
+
+    /* ============================================================
+       6. RENDER LOOP
+    ============================================================ */
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      // Subtle idle breathing on rim light
+      rimLight.intensity = 1.4 + Math.sin(t * 1.5) * 0.25;
+
+      controls.update();
+      renderer.render(scene, camera);
     }
     animate();
 
+    /* ============================================================
+       7. RESIZE HANDLER
+    ============================================================ */
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     });
+
+    /* ============================================================
+       8. MOBILE TOUCH POLISH
+    ============================================================ */
+    renderer.domElement.style.touchAction = 'none';
   </script>
 </body>
 </html>

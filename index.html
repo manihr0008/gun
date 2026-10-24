@@ -2,53 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0a0705">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Winchester 1866 — Brown Edition</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    width: 100%; height: 100%; overflow: hidden;
-    background: #0a0705; font-family: -apple-system, 'Segoe UI', sans-serif;
-    overscroll-behavior: none;
-    -webkit-user-select: none; user-select: none;
-    -webkit-touch-callout: none;
-  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0705; font-family: 'Segoe UI', sans-serif; }
 
-  #canvas-container { width: 100vw; height: 100vh; display: block; touch-action: none; }
-  #canvas-container canvas { display: block; touch-action: none; }
+  #canvas-container { width: 100vw; height: 100vh; display: block; }
 
   .ui-overlay {
-    position: absolute;
-    top: max(16px, env(safe-area-inset-top));
-    left: max(16px, env(safe-area-inset-left));
+    position: absolute; top: 20px; left: 20px;
     pointer-events: none;
     background: rgba(20, 12, 6, 0.6);
-    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
-    padding: 14px 18px;
+    padding: 18px 22px;
     border-radius: 10px;
     color: #fff;
     border-left: 4px solid #c08840;
     box-shadow: 0 8px 30px rgba(0,0,0,0.7);
-    max-width: 280px;
+    max-width: 320px;
   }
   .ui-overlay h1 {
-    font-size: 1.2rem; margin-bottom: 4px;
-    color: #d4a860; letter-spacing: 0.5px; font-weight: 600;
+    font-size: 1.4rem; margin-bottom: 6px;
+    color: #d4a860; letter-spacing: 1px; font-weight: 600;
   }
-  .ui-overlay p { font-size: 0.78rem; color: #c9b8a0; line-height: 1.5; }
+  .ui-overlay p { font-size: 0.85rem; color: #c9b8a0; line-height: 1.5; }
 
   .loading {
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    color: #d4a860; font-size: 1rem;
+    color: #d4a860; font-size: 1.1rem;
     text-align: center; letter-spacing: 3px;
     pointer-events: none;
   }
   .loading .bar {
-    width: 200px; height: 3px;
+    width: 220px; height: 3px;
     background: rgba(255,255,255,0.08);
     margin: 12px auto 0; border-radius: 2px;
     overflow: hidden;
@@ -60,13 +48,6 @@
   }
   .hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
   .error-msg { color: #ff5c5c !important; font-weight: 600; }
-
-  /* Mobile tweaks */
-  @media (max-width: 600px) {
-    .ui-overlay { padding: 10px 14px; max-width: 220px; }
-    .ui-overlay h1 { font-size: 1rem; }
-    .ui-overlay p { font-size: 0.7rem; }
-  }
 </style>
 </head>
 <body>
@@ -75,7 +56,7 @@
 
   <div class="ui-overlay" id="ui">
     <h1>Winchester 1866</h1>
-    <p>👆 Drag to Rotate &nbsp;|&nbsp; 🤏 Pinch to Zoom<br>🟤 Brown Edition</p>
+    <p>🖱️ Drag to Rotate &nbsp;|&nbsp; 🖱️ Scroll to Zoom<br>🟤 Brown Edition — Floating</p>
   </div>
 
   <div class="loading" id="loader">
@@ -89,52 +70,6 @@
 
   <script>
     /* ============================================================
-       0. DEVICE DETECTION — adaptive quality
-    ============================================================ */
-    const ua = navigator.userAgent;
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
-    const isIOS    = /iPhone|iPad|iPod/i.test(ua);
-    // High-end heuristic: newer devices get better quality
-    const isHighEnd = (
-      isIOS || // most iPhones are powerful
-      /Snapdragon 8|SD8|Tensor G[23]|Exynos 2[2-9]|Dimensity 9/i.test(ua) ||
-      (window.devicePixelRatio >= 3 && window.innerWidth >= 390)
-    );
-
-    // Quality presets
-    const QUALITY = {
-      high: {
-        pixelRatio: Math.min(window.devicePixelRatio, 2),
-        antialias: true,
-        shadowSize: 2048,
-        circleSegments: 128,
-        envWidth: 2048,
-        envHeight: 1024,
-        shadowType: THREE.PCFSoftShadowMap
-      },
-      medium: {
-        pixelRatio: Math.min(window.devicePixelRatio, 1.75),
-        antialias: true,
-        shadowSize: 1024,
-        circleSegments: 96,
-        envWidth: 1024,
-        envHeight: 512,
-        shadowType: THREE.PCFShadowMap
-      },
-      low: {
-        pixelRatio: 1.5,
-        antialias: false,
-        shadowSize: 512,
-        circleSegments: 64,
-        envWidth: 512,
-        envHeight: 256,
-        shadowType: THREE.BasicShadowMap
-      }
-    };
-
-    let quality = isHighEnd ? QUALITY.high : (isMobile ? QUALITY.medium : QUALITY.high);
-
-    /* ============================================================
        1. SCENE
     ============================================================ */
     const container = document.getElementById('canvas-container');
@@ -144,104 +79,87 @@
     const camera = new THREE.PerspectiveCamera(
       42, window.innerWidth / window.innerHeight, 0.1, 1000
     );
-    camera.position.set(0, 1.4, 5.5);
+    camera.position.set(0, 1.0, 5);
 
     const renderer = new THREE.WebGLRenderer({
-      antialias: quality.antialias,
-      alpha: false,
-      powerPreference: 'high-performance',
-      stencil: false,
-      depth: true
+      antialias: true, alpha: false, powerPreference: 'high-performance'
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(quality.pixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = quality.shadowType;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     container.appendChild(renderer.domElement);
 
-    // Touch handling
-    renderer.domElement.style.touchAction = 'none';
-    renderer.domElement.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-    renderer.domElement.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-
     /* ============================================================
-       2. ENVIRONMENT MAP — cached, adaptive resolution
+       2. ENVIRONMENT MAP — brighter, more streaks for heavy reflection
     ============================================================ */
-    let envMap = null;
     function buildEnvironment() {
-      if (envMap) return envMap;
-
       const pmrem = new THREE.PMREMGenerator(renderer);
       pmrem.compileEquirectangularShader();
 
       const c = document.createElement('canvas');
-      c.width = quality.envWidth;
-      c.height = quality.envHeight;
+      c.width = 2048; c.height = 1024;
       const ctx = c.getContext('2d');
 
-      const grad = ctx.createLinearGradient(0, 0, 0, c.height);
+      // Base gradient — warm brown undertone
+      const grad = ctx.createLinearGradient(0, 0, 0, 1024);
       grad.addColorStop(0.00, '#2a1f18');
       grad.addColorStop(0.42, '#5a4230');
-      grad.addColorStop(0.50, '#f8f0e0');
+      grad.addColorStop(0.50, '#f8f0e0'); // bright horizon
       grad.addColorStop(0.58, '#7a5a3a');
       grad.addColorStop(0.75, '#3a2818');
       grad.addColorStop(1.00, '#0a0705');
       ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillRect(0, 0, 2048, 1024);
 
-      const sx = c.width / 2048;
-      const sy = c.height / 1024;
-
+      // Bright studio streaks (more of them, brighter)
       const drawStreak = (x, y, w, h, color, blur) => {
         ctx.save();
-        ctx.shadowBlur = blur * sx;
+        ctx.shadowBlur = blur;
         ctx.shadowColor = color;
         ctx.fillStyle = color;
-        ctx.fillRect(x * sx, y * sy, w * sx, h * sy);
+        ctx.fillRect(x, y, w, h);
         ctx.restore();
       };
-      // Fewer streaks on low quality
-      const streakCount = quality.envWidth >= 1024 ? 6 : 3;
-      const positions = [
-        [150, 320, 60, 380, '#fff8dc', 80],
-        [420, 280, 50, 460, '#ffe9a8', 100],
-        [720, 340, 70, 340, '#fff8dc', 80],
-        [1050, 300, 55, 420, '#ffe9a8', 100],
-        [1380, 330, 65, 360, '#fff8dc', 80],
-        [1700, 310, 50, 400, '#ffe9a8', 100]
-      ];
-      for (let i = 0; i < streakCount; i++) drawStreak(...positions[i]);
+      drawStreak(150, 320, 60, 380, '#fff8dc', 80);
+      drawStreak(420, 280, 50, 460, '#ffe9a8', 100);
+      drawStreak(720, 340, 70, 340, '#fff8dc', 80);
+      drawStreak(1050, 300, 55, 420, '#ffe9a8', 100);
+      drawStreak(1380, 330, 65, 360, '#fff8dc', 80);
+      drawStreak(1700, 310, 50, 400, '#ffe9a8', 100);
 
+      // Warm gold radial glows
       const warmGlow = (cx, cy, r, color) => {
-        const rg = ctx.createRadialGradient(cx * sx, cy * sy, 10 * sx, cx * sx, cy * sy, r * sx);
+        const rg = ctx.createRadialGradient(cx, cy, 10, cx, cy, r);
         rg.addColorStop(0, color);
         rg.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = rg;
-        ctx.fillRect((cx - r) * sx, (cy - r) * sy, r * 2 * sx, r * 2 * sy);
+        ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
       };
       warmGlow(300, 500, 400, 'rgba(255,180,80,0.7)');
       warmGlow(1500, 480, 450, 'rgba(255,200,120,0.6)');
 
-      const coolGlow = ctx.createRadialGradient(100 * sx, 600 * sy, 10 * sx, 100 * sx, 600 * sy, 400 * sx);
+      // Cool rim on opposite side
+      const coolGlow = ctx.createRadialGradient(100, 600, 10, 100, 600, 400);
       coolGlow.addColorStop(0, 'rgba(140,170,255,0.7)');
       coolGlow.addColorStop(1, 'rgba(140,170,255,0)');
       ctx.fillStyle = coolGlow;
-      ctx.fillRect(0, 200 * sy, 600 * sx, 600 * sy);
+      ctx.fillRect(0, 200, 600, 600);
 
       const tex = new THREE.CanvasTexture(c);
       tex.mapping = THREE.EquirectangularReflectionMapping;
       tex.encoding = THREE.sRGBEncoding;
 
-      envMap = pmrem.fromEquirectangular(tex).texture;
+      const envMap = pmrem.fromEquirectangular(tex).texture;
       tex.dispose();
       pmrem.dispose();
       return envMap;
     }
 
-    envMap = buildEnvironment();
+    const envMap = buildEnvironment();
     scene.environment = envMap;
 
     /* ============================================================
@@ -252,13 +170,13 @@
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.6);
     keyLight.position.set(6, 10, 7);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
+    keyLight.shadow.mapSize.set(2048, 2048);
     keyLight.shadow.camera.near = 0.5;
     keyLight.shadow.camera.far = 40;
-    keyLight.shadow.camera.left = -8;
-    keyLight.shadow.camera.right = 8;
-    keyLight.shadow.camera.top = 8;
-    keyLight.shadow.camera.bottom = -8;
+    keyLight.shadow.camera.left = -6;
+    keyLight.shadow.camera.right = 6;
+    keyLight.shadow.camera.top = 6;
+    keyLight.shadow.camera.bottom = -6;
     keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
@@ -270,67 +188,31 @@
     fillLight.position.set(-4, 3, 6);
     scene.add(fillLight);
 
-    /* ============================================================
-       4. BADA CIRCLE — reflective brown floor (optimized segments)
-    ============================================================ */
-    const floorGeo = new THREE.CircleGeometry(9, quality.circleSegments);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x1c120a,
-      metalness: 1.0,
-      roughness: 0.08,
-      envMap,
-      envMapIntensity: 2.5
-    });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.6;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    // Gold ring — lower segments
-    const ringSegments = quality.circleSegments;
-    const ringGeo = new THREE.RingGeometry(8.85, 9.05, ringSegments);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xd4a860,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -1.59;
-    scene.add(ring);
+    const bounce = new THREE.PointLight(0x8866ff, 1.0, 18, 2);
+    bounce.position.set(0, -3, 0);
+    scene.add(bounce);
 
     /* ============================================================
-       5. CONTROLS — mobile tuned
+       4. CONTROLS
     ============================================================ */
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = isMobile ? 0.1 : 0.06;
+    controls.dampingFactor = 0.06;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = isMobile ? 1.0 : 1.4;
+    controls.autoRotateSpeed = 1.4;
     controls.enablePan = false;
     controls.minDistance = 1.5;
     controls.maxDistance = 15;
     controls.maxPolarAngle = Math.PI * 0.85;
     controls.minPolarAngle = Math.PI * 0.15;
-    controls.rotateSpeed = isMobile ? 0.6 : 1.0;
-    controls.zoomSpeed = isMobile ? 0.7 : 1.0;
 
-    // Pause auto-rotate on interaction
-    let autoRotateTimer;
-    controls.addEventListener('start', () => {
-      controls.autoRotate = false;
-      clearTimeout(autoRotateTimer);
-    });
+    controls.addEventListener('start', () => controls.autoRotate = false);
     controls.addEventListener('end', () => {
-      clearTimeout(autoRotateTimer);
-      autoRotateTimer = setTimeout(() => controls.autoRotate = true, 3000);
+      setTimeout(() => controls.autoRotate = true, 2500);
     });
 
     /* ============================================================
-       6. LOAD MODEL
+       5. LOAD MODEL — horizontal + brown + heavy reflection
     ============================================================ */
     const loaderEl   = document.getElementById('loader');
     const progressEl = document.getElementById('progress');
@@ -346,56 +228,76 @@
       function (gltf) {
         const gunModel = gltf.scene;
 
-        // Force horizontal
+        // ---- Detect longest axis, force horizontal ----
         const rawBox  = new THREE.Box3().setFromObject(gunModel);
         const rawSize = rawBox.getSize(new THREE.Vector3());
 
+        // If model is longer along Y (vertical) or Z, rotate so longest axis = X
         if (rawSize.y > rawSize.x && rawSize.y > rawSize.z) {
+          // Vertical → lay it down
           gunModel.rotation.z = -Math.PI / 2;
         } else if (rawSize.z > rawSize.x && rawSize.z > rawSize.y) {
+          // Points into screen → rotate to X
           gunModel.rotation.y = Math.PI / 2;
         }
+        // else already horizontal along X — leave alone
 
+        // Recompute box AFTER rotation and re-center
         gunModel.updateMatrixWorld(true);
         const box    = new THREE.Box3().setFromObject(gunModel);
         const center = box.getCenter(new THREE.Vector3());
         const size   = box.getSize(new THREE.Vector3());
         gunModel.position.sub(center);
 
-        // Materials — shared instances for performance
-        const woodMat  = new THREE.MeshStandardMaterial({
-          color: 0x5c3a1e, metalness: 0.55, roughness: 0.15,
-          envMap, envMapIntensity: 2.2
-        });
-        const brassMat = new THREE.MeshStandardMaterial({
-          color: 0xc08840, metalness: 1.0, roughness: 0.03,
-          envMap, envMapIntensity: 3.0
-        });
-        const metalMat = new THREE.MeshStandardMaterial({
-          color: 0x2b1a0f, metalness: 1.0, roughness: 0.02,
-          envMap, envMapIntensity: 3.2
-        });
-
+        // ---- Materials: BROWN + MAX REFLECTION ----
         gunModel.traverse((node) => {
           if (!node.isMesh) return;
           node.castShadow = true;
           node.receiveShadow = true;
-          node.frustumCulled = true;
 
           const name = (node.name + ' ' + (node.material?.name || '')).toLowerCase();
-          if (/wood|stock|handle|grip/.test(name)) node.material = woodMat;
-          else if (/brass|gold|receiver|trigger|lever/.test(name)) node.material = brassMat;
-          else node.material = metalMat;
+          const isWood  = /wood|stock|handle|grip/.test(name);
+          const isBrass = /brass|gold|receiver|trigger|lever/.test(name);
+
+          if (isWood) {
+            // Rich dark walnut wood — glossy
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x5c3a1e,
+              metalness: 0.55,
+              roughness: 0.15,
+              envMap,
+              envMapIntensity: 2.2
+            });
+          } else if (isBrass) {
+            // Polished copper-brass
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0xc08840,
+              metalness: 1.0,
+              roughness: 0.03,
+              envMap,
+              envMapIntensity: 3.0
+            });
+          } else {
+            // Dark chocolate brown metal — mirror polish
+            node.material = new THREE.MeshStandardMaterial({
+              color: 0x2b1a0f,
+              metalness: 1.0,
+              roughness: 0.02,
+              envMap,
+              envMapIntensity: 3.2
+            });
+          }
         });
 
+        // Wrap in group for floating bob
         gunGroup = new THREE.Group();
         gunGroup.add(gunModel);
         scene.add(gunGroup);
 
-        // Auto-frame
+        // Auto-frame camera
         const maxDim = Math.max(size.x, size.y, size.z);
         const dist   = maxDim * 1.9;
-        camera.position.set(0, maxDim * 0.4, dist);
+        camera.position.set(0, maxDim * 0.35, dist);
         camera.near = maxDim * 0.01;
         camera.far  = maxDim * 200;
         camera.updateProjectionMatrix();
@@ -409,7 +311,7 @@
         gunGroup.position.y = baseY;
 
         loaderEl.classList.add('hidden');
-        setTimeout(() => { if (loaderEl.parentNode) loaderEl.remove(); }, 500);
+        setTimeout(() => loaderEl.remove(), 500);
       },
 
       function (xhr) {
@@ -420,108 +322,43 @@
 
       function (error) {
         console.error('GLB load failed:', error);
-        loaderEl.innerHTML = '<p class="error-msg">⚠️ Failed to load gun.glb</p>';
+        loaderEl.innerHTML = '<p class="error-msg">⚠️ Failed to load gun.glb<br><span style="font-size:0.8rem;color:#888;">File should be in same folder</span></p>';
         uiEl.querySelector('p').textContent = 'Model missing — check console.';
       }
     );
 
     /* ============================================================
-       7. RENDER LOOP — adaptive throttling
+       6. RENDER LOOP
     ============================================================ */
     const clock = new THREE.Clock();
-    let lastFrame = 0;
-    let frameCount = 0;
-    let fpsCheckTime = 0;
-    let lowFpsFrames = 0;
-    let qualityDropped = false;
-
-    // Throttle animations on low-end
-    const animThrottle = quality === QUALITY.low ? 2 : 1; // every N frames
-    let frameIdx = 0;
 
     function animate() {
       requestAnimationFrame(animate);
-
-      frameIdx++;
-      // Skip bob animation on low-end every other frame (barely noticeable)
-      const doAnim = frameIdx % animThrottle === 0;
-
       const t = clock.getElapsedTime();
 
-      if (doAnim && gunGroup) {
+      if (gunGroup) {
         gunGroup.position.y = baseY + Math.sin(t * 1.1) * 0.06;
         gunGroup.rotation.z = Math.sin(t * 0.7) * 0.015;
       }
 
-      if (doAnim) {
-        ringMat.opacity = 0.7 + Math.sin(t * 1.5) * 0.2;
-        rimLight.intensity = 2.4 + Math.sin(t * 1.3) * 0.35;
-      }
+      rimLight.intensity = 2.4 + Math.sin(t * 1.3) * 0.35;
 
       controls.update();
       renderer.render(scene, camera);
-
-      // ===== FPS monitor — auto quality drop =====
-      frameCount++;
-      const now = performance.now();
-      if (now - fpsCheckTime >= 2000) {
-        const fps = (frameCount * 1000) / (now - fpsCheckTime);
-        if (fps < 30 && !qualityDropped) {
-          lowFpsFrames++;
-          if (lowFpsFrames >= 2) {
-            // Drop quality once
-            qualityDropped = true;
-            renderer.setPixelRatio(Math.min(quality.pixelRatio, 1.25));
-            renderer.shadowMap.enabled = false;
-            console.log('⚡ Quality auto-reduced for smoothness');
-          }
-        } else {
-          lowFpsFrames = 0;
-        }
-        frameCount = 0;
-        fpsCheckTime = now;
-      }
     }
     animate();
 
     /* ============================================================
-       8. RESIZE + ORIENTATION
+       7. RESIZE
     ============================================================ */
-    function onResize() {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      camera.aspect = w / h;
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatio));
-    }
-
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', () => {
-      setTimeout(onResize, 200);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     });
 
-    // Prevent context menu on long-press (iOS)
-    document.addEventListener('contextmenu', e => e.preventDefault());
-
-    // Prevent double-tap zoom
-    let lastTouch = 0;
-    document.addEventListener('touchend', e => {
-      const now = Date.now();
-      if (now - lastTouch <= 300) e.preventDefault();
-      lastTouch = now;
-    }, { passive: false });
-
-    /* ============================================================
-       9. PAGE VISIBILITY — pause rendering when tab hidden
-    ============================================================ */
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        clock.stop();
-      } else {
-        clock.start();
-      }
-    });
+    renderer.domElement.style.touchAction = 'none';
   </script>
 </body>
 </html>
